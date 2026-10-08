@@ -1,5 +1,5 @@
 name: Stellantis Login Worker
-version: "2.1.1"
+version: "2.2.0"
 slug: stellantis_worker
 description: Local login service for the Stellantis Vehicles integration (Opel, Peugeot, Citroën, DS, Vauxhall)
 url: https://github.com/jeffstahlnecker/opel-home-assistant

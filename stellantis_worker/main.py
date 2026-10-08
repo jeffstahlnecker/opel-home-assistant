@@ -1,3 +1,4 @@
+import re
 import time
 import asyncio
 import uuid
@@ -34,6 +35,22 @@ SELECTORS = {
     "authorize": '[name="decision"][value="allow"], '
                  '#cvs_from input[type="submit"], #cvs_form input[type="submit"], #cvs_from button[type="submit"], #cvs_form button[type="submit"]',
 }
+
+# Consent pages after login (e.g. id-dcr.opel.com/index/authorize-consentments) are matched by
+# button text, in the languages of the MyOpel/MyPeugeot/... markets.
+ACCEPT_TEXT = re.compile(
+    r"akzeptier|zustimm|einverstanden|erlaub|autorisier|bestätig|weiter|fortfahren|"
+    r"accept|agree|allow|authori[sz]|confirm|continue|"
+    r"accepter|j'accepte|autoriser|valider|continuer|"
+    r"accett|autorizz|conferm|continua|acept|confirmar|"
+    r"akkoord|toestaan|doorgaan|bevestig",
+    re.IGNORECASE,
+)
+DECLINE_TEXT = re.compile(
+    r"ablehn|nicht|später|abbrech|ohne|decline|deny|reject|refus|cancel|later|without|annul|sans|rifiut|senza|rechaz|sin |weiger",
+    re.IGNORECASE,
+)
+CLICKABLE = 'button, input[type="submit"], input[type="button"], [role="button"], a.btn, a.button'
 
 BROWSER_ARGS = [
     "--no-sandbox",
@@ -154,6 +171,52 @@ async def click_if_visible(page, selector):
     return False
 
 
+async def accept_consent(page):
+    # Known consent forms first, then any "accept"-like button that is not a "decline" one.
+    if await click_if_visible(page, SELECTORS["authorize"]):
+        return "authorize form"
+
+    candidates = page.locator(CLICKABLE)
+    for i in range(min(await candidates.count(), 30)):
+        button = candidates.nth(i)
+        try:
+            if not await button.is_visible():
+                continue
+            text = ((await button.inner_text()) or (await button.get_attribute("value")) or "").strip()
+            if not ACCEPT_TEXT.search(text) or DECLINE_TEXT.search(text):
+                continue
+            # Tick only the checkboxes the page requires before it can be submitted.
+            required = page.locator('input[type="checkbox"][required]:not(:checked)')
+            for j in range(await required.count()):
+                await required.nth(j).check(force=True, timeout=5000)
+            await button.click(timeout=5000)
+            return text[:40]
+        except Exception:
+            continue
+    return None
+
+
+async def describe_page(page):
+    # Visible headings, buttons and checkboxes (never field values), to show what a stalled page asks for.
+    try:
+        return await page.evaluate("""() => {
+            const visible = e => !!(e.offsetWidth || e.offsetHeight || e.getClientRects().length);
+            const text = s => (s || "").replace(/\\s+/g, " ").trim().slice(0, 60);
+            const out = [];
+            document.querySelectorAll("h1, h2, h3").forEach(e => visible(e) && out.push("heading: " + text(e.innerText)));
+            document.querySelectorAll('%s').forEach(e => visible(e) &&
+                out.push("button: " + text(e.innerText || e.value) + (e.id ? " #" + e.id : "")));
+            document.querySelectorAll('input[type="checkbox"]').forEach(e => {
+                const label = e.labels && e.labels[0] ? e.labels[0].innerText : "";
+                out.push("checkbox" + (e.required ? " (required)" : "") + (e.checked ? " (checked)" : "") +
+                    ": " + (e.name || e.id) + " " + text(label));
+            });
+            return out.slice(0, 25).join(" | ");
+        }""" % CLICKABLE)
+    except Exception:
+        return ""
+
+
 @app.post("/")
 async def fetch(request: Request):
     process_id = uuid.uuid4().hex[:8]
@@ -231,11 +294,12 @@ async def fetch(request: Request):
             await click_if_visible(page, SELECTORS["cookies"])
             await page.locator(SELECTORS["submit"]).first.click()
 
-            # After login the flow either shows a consent ("authorize") form or, for
-            # accounts that already consented, redirects straight to the app scheme.
+            # After login the flow shows zero or more consent pages, then redirects to the app scheme
+            # with the code. Accounts that already consented go straight to the redirect.
             log_process("Waiting for consent form or code...", process_id, debug)
             deadline = time.perf_counter() + timeout_page / 1000
-            authorized = False
+            consents = []
+            last_click = ("", 0.0)
             while not code_captured.is_set() and time.perf_counter() < deadline:
                 error = page.locator(SELECTORS["login_error"]).first
                 try:
@@ -245,9 +309,14 @@ async def fetch(request: Request):
                 except Exception:
                     pass
 
-                if not authorized and await click_if_visible(page, SELECTORS["authorize"]):
-                    authorized = True
-                    log_process("Consent form submitted", process_id, debug)
+                # Click again only on a new page, or if the same page has not moved on for a while.
+                now = time.perf_counter()
+                if len(consents) < 5 and (page.url != last_click[0] or now - last_click[1] > 5):
+                    clicked = await accept_consent(page)
+                    if clicked:
+                        consents.append(clicked)
+                        last_click = (page.url, now)
+                        log_process(f"Consent submitted ({clicked}) at {page_location(page)}", process_id, debug)
 
                 try:
                     await asyncio.wait_for(code_captured.wait(), timeout=0.5)
@@ -257,8 +326,11 @@ async def fetch(request: Request):
             if captured["code"]:
                 return http_response(captured["code"], process_id, process_start, 200)
 
-            step = "after consent" if authorized else "after login"
-            return http_response(f"Code not found {step} (stopped at {page_location(page)})", process_id, process_start)
+            step = f"after consent ({', '.join(consents)})" if consents else "after login"
+            details = await describe_page(page)
+            return http_response(
+                f"Code not found {step} (stopped at {page_location(page)})" + (f" Page: {details}" if details else ""),
+                process_id, process_start)
 
         except Exception as e:
             log_process(f"Error: {e}", process_id)

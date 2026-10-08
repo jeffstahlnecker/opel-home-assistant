@@ -13,6 +13,9 @@ OAuth code from the `mymopsdk://…` app redirect.
 - **New Opel login page**: Opel replaced the Gigya login form with the ForgeRock AM page
   (`idpcvs.opel.com/am/XUI/#login/`), so upstream waited for a form that no longer exists. The worker now handles
   the ForgeRock page (`#idToken1` / `#idToken2` / `#loginButton_0`, "allow" consent button) as well as the old form.
+- **New consent page**: after login Opel can show `id-dcr.opel.com/index/authorize-consentments`. The worker ticks
+  only the checkboxes the page marks as required and clicks the accept/continue button (never decline). If a page
+  still blocks it, the error lists that page's headings, buttons and checkboxes.
 - **Cookie banner**: upstream clicked "Login" while a cookie overlay could still cover it, failing with
   `Page.click: Timeout 30000ms exceeded` (the error reported in the integration's issues). The banner is now
   dismissed first.
