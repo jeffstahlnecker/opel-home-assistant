@@ -1,0 +1,14 @@
+name: Stellantis Login Worker
+version: "2.0.0"
+slug: stellantis_worker
+description: Local login service for the Stellantis Vehicles integration (Opel, Peugeot, Citroën, DS, Vauxhall)
+url: https://github.com/jeffstahlnecker/opel-home-assistant
+arch:
+  - amd64
+  - aarch64
+startup: application
+boot: auto
+ports:
+  3000/tcp: 3000
+ports_description:
+  3000/tcp: Login service (enter http://127.0.0.1:3000 as "Login service URL")

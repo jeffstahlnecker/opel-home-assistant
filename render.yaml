@@ -3,4 +3,6 @@ services:
     name: stellantis-playwright-worker
     env: docker
     plan: free
+    rootDir: stellantis_worker
+    healthCheckPath: /health
     autoDeploy: true
