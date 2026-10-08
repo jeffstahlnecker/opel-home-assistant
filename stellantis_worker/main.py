@@ -2,7 +2,7 @@ import re
 import time
 import asyncio
 import uuid
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import urlparse
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
@@ -146,9 +146,21 @@ def http_response(message, process_id, process_start, status=400):
 def extract_code(url):
     # The final redirect goes to the mobile app scheme (mymopsdk://, mymap://, ...),
     # which the browser cannot open; the authorization code is in its query string.
+    # The code is returned exactly as sent (still URL-encoded): the integration pastes it
+    # straight into the token request URL, so a decoded "+" or "/" would break the exchange.
     if not url or not urlparse(url).scheme.startswith("mym"):
         return None
-    return parse_qs(urlparse(url).query).get("code", [None])[0]
+    for param in urlparse(url).query.split("&"):
+        key, _, value = param.partition("=")
+        if key == "code" and value:
+            return value
+    return None
+
+
+def describe_code(code):
+    # Shape of the code for the log, never the code itself.
+    kinds = sorted({"letters" if c.isalpha() else "digits" if c.isdigit() else c for c in code})
+    return f"{len(code)} chars: {', '.join(kinds)}"
 
 
 def page_location(page):
@@ -246,7 +258,7 @@ async def fetch(request: Request):
         if code and not captured["code"]:
             captured["code"] = code
             code_captured.set()
-            log_process("Code captured!", process_id, debug)
+            log_process(f"Code captured ({describe_code(code)})", process_id)
 
     def on_response(response):
         if 300 <= response.status < 400:
