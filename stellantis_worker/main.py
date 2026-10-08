@@ -19,13 +19,20 @@ playwright = None
 browser = None
 browser_lock = asyncio.Lock()
 
+# Opel/Stellantis moved from a Gigya login form to the ForgeRock AM "XUI" login page
+# (/am/XUI/#login/). Both are listed so either flow keeps working.
 SELECTORS = {
     "cookies": "#onetrust-accept-btn-handler, #didomi-notice-agree-button, button#accept-all-cookies",
-    "email": '#gigya-login-form input[name="username"], #gigya-login-form input[type="email"]',
-    "password": '#gigya-login-form input[name="password"], #gigya-login-form input[type="password"]',
-    "submit": '#gigya-login-form input[type="submit"], #gigya-login-form button[type="submit"]',
-    "login_error": "#gigya-login-form .gigya-error-msg-active, #gigya-login-form .gigya-form-error-msg.gigya-error-msg-active",
-    "authorize": '#cvs_from input[type="submit"], #cvs_form input[type="submit"], #cvs_from button[type="submit"], #cvs_form button[type="submit"]',
+    "email": "#idToken1, "
+             '#gigya-login-form input[name="username"], #gigya-login-form input[type="email"]',
+    "password": "#idToken2, "
+                '#gigya-login-form input[name="password"], #gigya-login-form input[type="password"]',
+    "submit": "#loginButton_0, "
+              '#gigya-login-form input[type="submit"], #gigya-login-form button[type="submit"]',
+    "login_error": "#loginFailure, .alert-danger, "
+                   "#gigya-login-form .gigya-error-msg-active, #gigya-login-form .gigya-form-error-msg.gigya-error-msg-active",
+    "authorize": '[name="decision"][value="allow"], '
+                 '#cvs_from input[type="submit"], #cvs_form input[type="submit"], #cvs_from button[type="submit"], #cvs_form button[type="submit"]',
 }
 
 BROWSER_ARGS = [

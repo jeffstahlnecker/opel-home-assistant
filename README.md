@@ -10,6 +10,9 @@ OAuth code from the `mymopsdk://…` app redirect.
 
 ## What changed vs upstream
 
+- **New Opel login page**: Opel replaced the Gigya login form with the ForgeRock AM page
+  (`idpcvs.opel.com/am/XUI/#login/`), so upstream waited for a form that no longer exists. The worker now handles
+  the ForgeRock page (`#idToken1` / `#idToken2` / `#loginButton_0`, "allow" consent button) as well as the old form.
 - **Cookie banner**: upstream clicked "Login" while a cookie overlay could still cover it, failing with
   `Page.click: Timeout 30000ms exceeded` (the error reported in the integration's issues). The banner is now
   dismissed first.
