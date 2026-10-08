@@ -32,8 +32,11 @@ OAuth code from the `mymopsdk://…` app redirect.
 2. Install **Stellantis Login Worker** and start it (first build downloads a large Playwright image; give it a few
    minutes). Supports amd64 and aarch64 (e.g. Raspberry Pi 4/5).
 3. Add or reconfigure the **Stellantis Vehicles** integration, choose MyOpel, and on the email/password step set
-   **Login service URL** to `http://127.0.0.1:3000`
-   (if that does not connect, use `http://<your-HA-IP>:3000`).
+   **Login service URL** to `http://127.0.0.1:3789`
+   (if that does not connect, use `http://<your-HA-IP>:3789`).
+
+The add-on listens on host port **3789**. If another add-on already uses it, the add-on will not start: change the
+port on the add-on's **Configuration → Network** section and use that port in the URL instead.
 
 ## Run with Docker (HA Container / Core)
 
@@ -41,7 +44,7 @@ OAuth code from the `mymopsdk://…` app redirect.
 docker compose up -d --build
 ```
 
-Then use `http://<docker-host-ip>:3000` as the **Login service URL**.
+Then use `http://<docker-host-ip>:3789` (change the left side of `3789:3000` in `docker-compose.yml` if that port is taken) as the **Login service URL**.
 
 ## Run on Render
 

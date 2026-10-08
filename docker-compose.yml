@@ -3,6 +3,6 @@ services:
     build: ./stellantis_worker
     container_name: stellantis-worker
     ports:
-      - "3000:3000"
+      - "3789:3000"
     shm_size: "512mb"
     restart: unless-stopped
