@@ -41,6 +41,52 @@ OAuth code from the `mymopsdk://…` app redirect.
 The add-on listens on host port **3789**. If another add-on already uses it, the add-on will not start: change the
 port on the add-on's **Configuration → Network** section and use that port in the URL instead.
 
+## Re-login from Home Assistant (add-on 2.3.0+)
+
+When the MyOpel login dies (`invalid_grant`) or remote commands need a new SMS, the add-on can drive the
+integration's own Reconfigure flow for you, so a dashboard button replaces the manual dialogs.
+
+1. In the add-on's **Configuration**, fill in `email`, `password` and `pin` (your Opel app PIN). Optionally set
+   `notify_service` (e.g. `mobile_app_my_phone`) for push notifications. Changes apply without a restart.
+2. Call the endpoints from Home Assistant at `http://127.0.0.1:3789`:
+
+| Endpoint | What it does |
+|---|---|
+| `POST /relogin` | Renews the account login (≈1–5 min). `?dry_run=1` checks the flow without logging in. |
+| `POST /remote-commands/start` | Sends the SMS for remote commands. **Remote commands stay off until the SMS step succeeds.** |
+| `POST /remote-commands/sms` `{"code": "123456"}` | Submits the SMS code with the configured PIN (10 min window). |
+| `POST /cancel` | Stops the running job. |
+| `GET /status` | `{"stage", "message", "job", "last_attempt", "last_success"}` |
+
+Progress is published as `sensor.opel_login_status` (`idle`, `running`, `waiting_for_sms`, `success`, `failed`)
+plus a persistent notification (and your notify service, if set).
+
+```yaml
+rest_command:
+  opel_relogin:
+    url: http://127.0.0.1:3789/relogin
+    method: post
+  opel_remote_commands_start:
+    url: http://127.0.0.1:3789/remote-commands/start
+    method: post
+  opel_remote_commands_sms:
+    url: http://127.0.0.1:3789/remote-commands/sms
+    method: post
+    content_type: application/json
+    payload: '{"code": "{{ code }}"}'
+```
+
+Notes:
+- One job at a time (`409` otherwise). Each of `/relogin` and `/remote-commands/start` can run at most once per
+  `min_minutes_between_attempts` (default 15, `429` with `retry_after_s`), so a hammered button can't lock the account.
+- If the integration is not loaded (its login died), `/relogin` continues the integration's reauth flow. If remote
+  commands are enabled, that flow also asks for the SMS: the status goes to `waiting_for_sms`.
+- Credentials, PIN, SMS code and OAuth codes are never logged or returned.
+- **LAN access:** host port 3789 is reachable from your network. `POST /` (the login service) stays open as before,
+  but the re-login endpoints only accept calls from Home Assistant itself (loopback and the Supervisor network
+  `172.30.32.0/23`). Set `allow_lan: true` to call them from other machines. `GET /status` is open and contains no
+  secrets.
+
 ## Run with Docker (HA Container / Core)
 
 ```sh

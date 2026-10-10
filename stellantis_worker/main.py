@@ -8,7 +8,10 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from playwright.async_api import async_playwright
 
+import relogin
+
 app = FastAPI()
+app.include_router(relogin.router)
 
 browser_process_id = None
 browser_start = None
